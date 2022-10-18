@@ -30,7 +30,55 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Configure the KubeClient as documented here: https://github.com/ManageIQ/kubeclient and instantiate the adapter.
+
+Es:
+```ruby
+
+  kubeclient_config = Kubeclient::Config.read(ENV['KUBECONFIG'] || File.join(Dir.home, '/.kube/config'))
+
+  config.active_job.queue_adapter = ActiveJob::QueueAdapters::K8sAdapter.new(
+    kubeclient_context: kubeclient_config.context('kind-kind')
+  )
+
+```
+
+Inside you job you should describe the initial manifest for the [KubernetesJob](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+
+ES:
+```ruby
+class HelloWorldJob < ApplicationJob
+  queue_as :default
+
+  def perform(*args)
+    Rails.logger.debug "Hello World"
+  end
+
+  def manifest
+    YAML.safe_load(
+      <<~MANIFEST
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: scheduled-job-name
+            namespace: default
+          spec:
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: app-job
+                    image: image_of_the_rails_application
+                    imagePullPolicy: IfNotPresent
+
+    MANIFEST
+    )
+  end
+end
+```
+
+The command will be inserted by the gem.  
+To the name of the Job wi will append a timestamp to make it uniq
 
 ## Development
 
