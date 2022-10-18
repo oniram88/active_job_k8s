@@ -77,7 +77,11 @@ class HelloWorldJob < ApplicationJob
 end
 ```
 
-The command will be inserted by the gem.  
+The command will be inserted by the gem if not present.
+```yaml
+      command: ["rake"]
+      args: ["active_job_k8s:run_job"]
+```
 To the name of the Job wi will append a timestamp to make it uniq
 
 ## Development

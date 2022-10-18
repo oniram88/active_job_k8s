@@ -24,6 +24,11 @@ module ActiveJobK8s
                              'name' => 'SERIALIZED_JOB',
                              'value' => serialized_job
                            })
+
+        if container.command.blank?
+          container.command = ["rake"]
+          container.args = ["active_job_k8s:run_job"]
+        end
       end
 
       client.create_job(kube_job)
