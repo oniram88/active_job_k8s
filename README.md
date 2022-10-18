@@ -86,6 +86,8 @@ To the name of the Job wi will append a timestamp to make it uniq
 
 ## Development
 
+Requirements: [kind](https://kind.sigs.k8s.io/)
+
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can
 also run `bin/console` for an interactive prompt that will allow you to experiment.
 
