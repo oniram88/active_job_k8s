@@ -1,10 +1,16 @@
 # ActiveJobK8s
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library
-into a gem. Put your Ruby code in the file `lib/active_job_k8s`. To experiment with that code, run `bin/console` for an
-interactive prompt.
+WIP gem to make active job work with kubernetes jobs.
 
-TODO: Delete this and the text above, and describe your gem
+Roadmap for V1.0:
+- [ ] ActiveJob.perform_later create a Job in k8s that will execute the job
+- [ ] ActiveJob.perform_later with delay create a Job in k8s in suspended mode, 
+      a task will enable it as soon as the time is reached
+- [ ] Limiting the number of concurrent jobs (if there are more jobs they will be created in suspended mode)
+
+Future:
+- [ ] Metrics (because everyone like metrics)
+- [ ] Retry options
 
 ## Installation
 
