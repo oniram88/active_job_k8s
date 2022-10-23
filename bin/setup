@@ -8,6 +8,57 @@ bundle install
 # Prepariamo l'applicazione esempio
 rm -fr spec/dummy
 bundle exec rails new spec/dummy --skip-git --skip-javascript --skip-hotwire --skip-jbuilder --skip-test --skip-bootsnap --force
+
+echo "Changes to application"
+
+sed -i 's/"2.7.4"/">= 2.7.4"/' spec/dummy/Gemfile
+sed -i '/end/i root "main#index"' spec/dummy/config/routes.rb
+sed -i '/root "main#index"/i get  "create_job", to:  "main#create_job", as: "create_job"' spec/dummy/config/routes.rb
+
+echo '
+class MainController < ApplicationController
+  include ActionView::Helpers::UrlHelper
+  def index
+    render inline: "#{link_to HelloWorldJob.name,create_job_path}"
+  end
+
+  def create_job
+    HelloWorldJob.perform_later
+    redirect_to root_path
+  end
+
+end
+' > spec/dummy/app/controllers/main_controller.rb
+
+echo '
+Rails.application.configure do
+
+  auth_options = {
+    bearer_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  }
+  ssl_options = {}
+  if File.exist?("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    ssl_options[:ca_file] = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+  end
+  api_endpoint = "https://kubernetes.default.svc"
+  api_version = "v1"
+  namespace = File.read("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+
+  context = Kubeclient::Config::Context.new(
+    api_endpoint,
+    api_version,
+    ssl_options,
+    auth_options,
+    namespace
+  )
+
+  config.active_job.queue_adapter = ActiveJob::QueueAdapters::K8sAdapter.new(
+    kubeclient_context: context
+  )
+
+end
+' > spec/dummy/config/initializers/active_job_k8s.rb
+
 echo '
 class HelloWorldJob < ApplicationJob
   queue_as :default
@@ -30,14 +81,14 @@ class HelloWorldJob < ApplicationJob
                 restartPolicy: Never
                 containers:
                   - name: app-job
-                    image: image_of_the_rails_application
+                    image: activejobk8s:0.1.0
                     imagePullPolicy: IfNotPresent
 
     MANIFEST
     )
   end
 end
-' >spec/dummy/app/jobs/hello_world_job.rb
+' > spec/dummy/app/jobs/hello_world_job.rb
 
 echo 'FROM ruby:3.0.4-alpine3.16
 
@@ -48,21 +99,30 @@ RUN apk update \
 RUN gem install bundler:2.3.7
 
 # throw errors if Gemfile has been modified since Gemfile.lock
-RUN bundle config --global frozen 1
-RUN bundle config set --local without "development test"
-WORKDIR /usr/src/app
+WORKDIR /usr/src/app/spec/dummy
 
 COPY Gemfile Gemfile.lock ./
 RUN bundle install
 
 COPY . .
 
-CMD ["bundle exec rails s -b 0.0.0.0 -p 3000"]' >spec/dummy/Dockerfile
+CMD ["/bin/sh", "-ec", "bundle install && bundle exec rails s -b 0.0.0.0 -p 3000"]' > spec/dummy/Dockerfile
 
 docker build -t activejobk8s:0.1.0 spec/dummy/.
-kind load docker-image activejobk8s:0.1.0
 
-kubectl config set-context kind-kind
+# aggiungiamo la path ad active_job_k8s nel Gemfile che viene poi usato nel cluster e che punta alla gemma.
+echo "gem 'active_job_k8s', path:'/usr/src/app' " >> spec/dummy/Gemfile
+
+
+echo "START KIND ENV"
+kind create cluster --config bin/cluster.yaml
+kubectl config set-context active-job-cluster
+
+echo "SLEEP for cluster to be ready"
+sleep 10
+
+kind load docker-image activejobk8s:0.1.0 -n active-job-cluster
+
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
@@ -74,6 +134,56 @@ spec:
   - name: app
     image: activejobk8s:0.1.0
     imagePullPolicy: Never
+    ports:
+      - name: app
+        containerPort: 3000
+        protocol: TCP
+    env:
+      - name: RAILS_SERVE_STATIC_FILES
+        value: '1'
+      - name: RAILS_LOG_TO_STDOUT
+        value: '1'
+      - name: RAILS_ENV
+        value: 'development'
+    volumeMounts:
+    - mountPath: /usr/src/app
+      name: application-volume
+  volumes:
+  - name: application-volume
+    hostPath:
+      # directory location on host
+      path: /application
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: jobs-edit
+  namespace: default
+rules:
+  - apiGroups:
+      - "batch"
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: jobs-edit
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jobs-edit
 EOF
 
 
