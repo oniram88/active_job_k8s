@@ -65,6 +65,7 @@ class HelloWorldJob < ApplicationJob
 
   def perform(*args)
     Rails.logger.debug "Hello World"
+    FileUtils.touch(Rails.root.join("tmp","#{SecureRandom.hex}.test"))
   end
 
   def manifest
@@ -80,9 +81,28 @@ class HelloWorldJob < ApplicationJob
               spec:
                 restartPolicy: Never
                 containers:
-                  - name: app-job
-                    image: activejobk8s:0.1.0
-                    imagePullPolicy: IfNotPresent
+                - name: app-job
+                  image: activejobk8s:0.1.0
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: RAILS_SERVE_STATIC_FILES
+                      value: "1"
+                    - name: RAILS_LOG_TO_STDOUT
+                      value: "1"
+                    - name: RAILS_ENV
+                      value: "development"
+                  command: ["/bin/sh"]
+                  args:
+                    - "-ec"
+                    - "bundle install && bundle exec rails active_job_k8s:run_job"
+                  volumeMounts:
+                  - mountPath: /usr/src/app
+                    name: application-volume
+                volumes:
+                - name: application-volume
+                  hostPath:
+                    # directory location on host
+                    path: /application
 
     MANIFEST
     )
