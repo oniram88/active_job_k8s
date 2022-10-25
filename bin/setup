@@ -115,6 +115,7 @@ echo "gem 'active_job_k8s', path:'/usr/src/app' " >> spec/dummy/Gemfile
 
 
 echo "START KIND ENV"
+kind delete cluster -n active-job-cluster
 kind create cluster --config bin/cluster.yaml
 kubectl config set-context active-job-cluster
 
@@ -129,6 +130,8 @@ kind: Pod
 metadata:
   name: test-activejobk8s
   namespace: default
+  labels:
+    app: active-job-app
 spec:
   containers:
   - name: app
@@ -184,6 +187,25 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: jobs-edit
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  namespace: default
+  labels:
+    app: app-service
+spec:
+  ports:
+    - name: 3000-3000
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30335
+  selector:
+    app: active-job-app
+  type: NodePort
 EOF
 
-
+echo "Open browser to 0.0.0.0:3000"
+open http://0.0.0.0:3000

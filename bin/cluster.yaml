@@ -7,5 +7,5 @@ nodes:
       - hostPath: ./
         containerPath: /application
     extraPortMappings:
-      - containerPort: 3000
+      - containerPort: 30335
         hostPort: 3000
