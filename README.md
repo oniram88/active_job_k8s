@@ -3,7 +3,7 @@
 WIP gem to make active job work with kubernetes jobs.
 
 Roadmap for V1.0:
-- [ ] ActiveJob.perform_later create a Job in k8s that will execute the job
+- [x] ActiveJob.perform_later create a Job in k8s that will execute the job
 - [ ] ActiveJob.perform_later with delay create a Job in k8s in suspended mode, 
       a task will enable it as soon as the time is reached
 - [ ] Limiting the number of concurrent jobs (if there are more jobs they will be created in suspended mode)
@@ -79,7 +79,7 @@ end
 
 The command will be inserted by the gem if not present.
 ```yaml
-      command: ["rake"]
+      command: ["rails"]
       args: ["active_job_k8s:run_job"]
 ```
 To the name of the Job wi will append a timestamp to make it uniq
@@ -88,18 +88,13 @@ To the name of the Job wi will append a timestamp to make it uniq
 
 Requirements: [kind](https://kind.sigs.k8s.io/)
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can
-also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the
-version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version,
-push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+After checking out the repo, run `bin/setup` to install the environment (cluster and dummy app). 
 
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/active_job_k8s. This project is
 intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to
-the [code of conduct](https://github.com/[USERNAME]/active_job_k8s/blob/master/CODE_OF_CONDUCT.md).
+the [code of conduct](https://github.com/oniram88/active_job_k8s/blob/master/CODE_OF_CONDUCT.md).
 
 ## License
 
