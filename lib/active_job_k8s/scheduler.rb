@@ -17,7 +17,9 @@ module ActiveJobK8s
       kube_job = Kubeclient::Resource.new(job.manifest)
 
       # kube_job.spec.suspend = false FIXME complete for delayed jobs
-      kube_job.metadata.name = "#{kube_job.metadata.name}-#{Time.now.to_i}"
+      kube_job.metadata.name = "#{kube_job.metadata.name}-#{job.job_id}"
+      kube_job.metadata.job_id = job.job_id
+      kube_job.metadata.queue_name = job.queue_name
       kube_job.spec.template.spec.containers.map do |container|
         container.env ||= []
         container.env.push({
@@ -30,6 +32,7 @@ module ActiveJobK8s
           container.args = ["active_job_k8s:run_job"]
         end
       end
+      kube_job.spec.ttlSecondsAfterFinished = 300 #number of seconds the job will be erased
 
       client.create_job(kube_job)
     end
