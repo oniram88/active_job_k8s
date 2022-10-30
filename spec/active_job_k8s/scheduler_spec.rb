@@ -1,31 +1,3 @@
-class TestActiveJob < ActiveJob::Base
-
-  queue_as "name-of-the-queue"
-
-  def perform(arg) end
-
-  def manifest
-    YAML.safe_load(
-      <<~MANIFEST
-        apiVersion: batch/v1
-        kind: Job
-        metadata:
-          name: scheduled-job-name
-        spec:
-          template:
-            spec:
-              restartPolicy: Never
-              containers:
-                - name: app-job
-                  image: image_of_the_rails_application
-                  imagePullPolicy: IfNotPresent
-
-    MANIFEST
-    )
-  end
-
-end
-
 RSpec.describe 'ActiveJobK8s::Scheduler' do
 
   let(:args) {
@@ -84,6 +56,48 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
 
     describe "create job" do
 
+      let(:manifest) do
+        {
+          "apiVersion" => "batch/v1",
+          "kind" => "Job",
+          "metadata" => { "name" => "scheduled-job-name" },
+          "spec" =>
+            { "template" =>
+                { "spec" =>
+                    { "restartPolicy" => "Never",
+                      "containers" =>
+                        [
+                          {
+                            "name" => "app-job",
+                            "image" => "image_of_the_rails_application",
+                            "imagePullPolicy" => "IfNotPresent"
+                          }
+                        ]
+                    }
+                }
+            }
+        }
+      end
+
+      let(:job_class) do
+
+        c = Class.new(ActiveJob::Base) do
+
+          cattr_accessor :manifest
+          queue_as "name-of-the-queue"
+
+          def perform(arg) end
+
+          def manifest
+            self.class.manifest
+          end
+
+        end
+
+        c.manifest = manifest
+        c
+      end
+
       let(:fake_client) do
         spy("Client")
       end
@@ -120,7 +134,7 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
                                                    ))
         )
 
-        TestActiveJob.perform_later(BigDecimal("1.1212"))
+        job_class.perform_later(BigDecimal("1.1212"))
 
       end
 
