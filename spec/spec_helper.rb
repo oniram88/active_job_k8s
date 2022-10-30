@@ -1,3 +1,5 @@
+require 'simplecov'
+SimpleCov.start
 require "bundler/setup"
 require "active_job_k8s"
 
