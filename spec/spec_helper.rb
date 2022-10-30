@@ -1,8 +1,12 @@
 require 'simplecov'
-
+require 'simplecov-cobertura'
 SimpleCov.start do
   project_name "ActiveJobK8s"
   enable_coverage :branch
+  formatter SimpleCov::Formatter::MultiFormatter.new([
+                                                       SimpleCov::Formatter::HTMLFormatter,
+                                                       SimpleCov::Formatter::CoberturaFormatter
+                                                     ])
 end
 
 require "bundler/setup"
