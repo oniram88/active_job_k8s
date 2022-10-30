@@ -20,6 +20,7 @@ module ActiveJobK8s
       kube_job.metadata.name = "#{kube_job.metadata.name}-#{job.job_id}"
       kube_job.metadata.job_id = job.job_id
       kube_job.metadata.queue_name = job.queue_name
+      kube_job.metadata.namespace = kube_job.metadata.namespace || kubeclient_context.namespace
       kube_job.spec.template.spec.containers.map do |container|
         container.env ||= []
         container.env.push({
@@ -45,7 +46,7 @@ module ActiveJobK8s
 
     def client
       @client ||= Kubeclient::Client.new(@kubeclient_context.api_endpoint + '/apis/batch',
-                                         'v1' || @kubeclient_context.version,
+                                         @kubeclient_context.version || 'v1',
                                          ssl_options: @kubeclient_context.ssl_options,
                                          auth_options: @kubeclient_context.auth_options)
     end
