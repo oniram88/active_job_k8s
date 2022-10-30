@@ -34,7 +34,7 @@ module ActiveJobK8s
                            })
 
         if container.command.blank?
-          container.command = ["rake"]
+          container.command = ["rails"]
           container.args = ["active_job_k8s:run_job"]
         end
       end

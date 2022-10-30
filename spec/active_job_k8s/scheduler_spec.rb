@@ -125,7 +125,9 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
                                                                env: array_including({
                                                                                       name: 'SERIALIZED_JOB',
                                                                                       value: an_instance_of(String)
-                                                                                    })
+                                                                                    }),
+                                                               command: ['rails'],
+                                                               args: ["active_job_k8s:run_job"]
                                                              )
                                                            )
                                                          )
@@ -134,8 +136,40 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
                                                    ))
         )
 
-        job_class.perform_later(BigDecimal("1.1212"))
+        job_class.perform_later
 
+      end
+
+      context "with command" do
+        let(:manifest) do
+          super().tap do |m|
+            m['spec']['template']['spec']['containers'][0].tap do |c|
+              c['command'] = ['sleep']
+              c['args'] = ["3000"]
+            end
+          end
+        end
+
+        it do
+          expect(fake_client).to receive(:create_job).with(
+            have_attributes(
+              spec: include(
+                ttlSecondsAfterFinished: 300,
+                template: include(
+                  spec: include(
+                    containers: array_including(
+                      include(
+                        command: ['sleep'],
+                        args: ["3000"]
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+          job_class.perform_later
+        end
       end
 
     end
