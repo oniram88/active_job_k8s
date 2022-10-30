@@ -30,9 +30,10 @@ Or install it yourself as:
 
 ## Usage
 
+### Adapter Configuration
 Configure the KubeClient as documented here: https://github.com/ManageIQ/kubeclient and instantiate the adapter.
 
-Es:
+ES Local with default kind cluster:
 ```ruby
 
   kubeclient_config = Kubeclient::Config.read(ENV['KUBECONFIG'] || File.join(Dir.home, '/.kube/config'))
@@ -42,6 +43,75 @@ Es:
   )
 
 ```
+ES production configuration:
+```ruby
+Rails.application.configure do
+
+  auth_options = {
+    bearer_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  }
+  ssl_options = {}
+  if File.exist?("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    ssl_options[:ca_file] = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+  end
+  api_endpoint = "https://kubernetes.default.svc"
+  api_version = "v1"
+  namespace = File.read("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+
+  context = Kubeclient::Config::Context.new(
+    api_endpoint,
+    api_version,
+    ssl_options,
+    auth_options,
+    namespace
+  )
+
+  config.active_job.queue_adapter = ActiveJob::QueueAdapters::K8sAdapter.new(
+    kubeclient_context: context
+  )
+
+end
+```
+
+### Kubernetes Configuration
+
+The adapter should be capable to query the kubernetes cluster, this is the role to create inside the namespace, it will
+add api capacity o jobs to the default ServiceAccount
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: jobs-edit
+  namespace: YOURN-NAMESPACE
+rules:
+  - apiGroups:
+      - "batch"
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: jobs-edit
+  namespace: YOURN-NAMESPACE
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jobs-edit
+```
+
+### Job configuration
 
 Inside you job you should describe the initial manifest for the [KubernetesJob](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
 
