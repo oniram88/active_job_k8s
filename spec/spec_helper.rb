@@ -1,5 +1,10 @@
 require 'simplecov'
-SimpleCov.start
+
+SimpleCov.start do
+  project_name "ActiveJobK8s"
+  enable_coverage :branch
+end
+
 require "bundler/setup"
 require "active_job_k8s"
 
