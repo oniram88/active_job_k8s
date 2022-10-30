@@ -140,6 +140,11 @@ class HelloWorldJob < ApplicationJob
                   - name: app-job
                     image: image_of_the_rails_application
                     imagePullPolicy: IfNotPresent
+                    command:
+                      - /bin/bash
+                    args:
+                      - '-c'
+                      - bundle exec rails active_job_k8s:run_job
 
     MANIFEST
     )
