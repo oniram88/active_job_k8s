@@ -1,4 +1,5 @@
 require 'kubeclient'
+require 'active_job'
 require 'active_job_k8s/scheduler'
 
 module ActiveJob
