@@ -1,8 +1,13 @@
+require "kubeclient"
+require "active_job"
+require "json"
+
 module ActiveJobK8s
   class Scheduler
 
     attr_reader :kubeclient_context
 
+    # @param [Hash{ kubeclient_context: [Kubeclient::Config::Context] }] opts
     def initialize(**opts)
       raise "No KubeClientContext given" if opts[:kubeclient_context].nil?
       # or to use a specific context, by name:
@@ -46,7 +51,7 @@ module ActiveJobK8s
 
     def client
       @client ||= Kubeclient::Client.new(@kubeclient_context.api_endpoint + '/apis/batch',
-                                         @kubeclient_context.version || 'v1',
+                                         @kubeclient_context.api_version || 'v1',
                                          ssl_options: @kubeclient_context.ssl_options,
                                          auth_options: @kubeclient_context.auth_options)
     end
