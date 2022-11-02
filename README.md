@@ -66,8 +66,33 @@ Rails.application.configure do
     namespace
   )
 
+  default_manifest = YAML.safe_load(
+          <<~MANIFEST
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: scheduled-job-name
+            namespace: default
+          spec:
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: app-job
+                    image: image_of_the_rails_application
+                    imagePullPolicy: IfNotPresent
+                    command:
+                      - /bin/bash
+                    args:
+                      - '-c'
+                      - bundle exec rails active_job_k8s:run_job
+
+  MANIFEST
+  )
+
   config.active_job.queue_adapter = ActiveJob::QueueAdapters::K8sAdapter.new(
-    kubeclient_context: context
+    kubeclient_context: context,
+    default_manifest: default_manifest
   )
 
 end
@@ -123,32 +148,12 @@ class HelloWorldJob < ApplicationJob
   def perform(*args)
     Rails.logger.debug "Hello World"
   end
-
-  def manifest
-    YAML.safe_load(
-      <<~MANIFEST
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: scheduled-job-name
-            namespace: default
-          spec:
-            template:
-              spec:
-                restartPolicy: Never
-                containers:
-                  - name: app-job
-                    image: image_of_the_rails_application
-                    imagePullPolicy: IfNotPresent
-                    command:
-                      - /bin/bash
-                    args:
-                      - '-c'
-                      - bundle exec rails active_job_k8s:run_job
-
-    MANIFEST
-    )
-  end
+      
+  #[Optional] if not present it will be taken from scheduler configuration
+  # def manifest
+  # .....
+  # end 
+      
 end
 ```
 

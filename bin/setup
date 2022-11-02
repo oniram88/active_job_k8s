@@ -11,19 +11,26 @@ bundle exec rails new spec/dummy --skip-git --skip-javascript --skip-hotwire --s
 
 echo "Changes to application"
 
-sed -i 's/"2.7.4"/">= 2.7.4"/' spec/dummy/Gemfile
+sed -i 's/2.7.4/>= 2.7.4/' spec/dummy/Gemfile
 sed -i '/end/i root "main#index"' spec/dummy/config/routes.rb
 sed -i '/root "main#index"/i get  "create_job", to:  "main#create_job", as: "create_job"' spec/dummy/config/routes.rb
+sed -i '/root "main#index"/i get  "send_email", to:  "main#send_email", as: "send_email"' spec/dummy/config/routes.rb
 
 echo '
 class MainController < ApplicationController
   include ActionView::Helpers::UrlHelper
+
   def index
-    render inline: "#{link_to HelloWorldJob.name,create_job_path}"
+    render inline: "#{link_to HelloWorldJob.name, create_job_path}<br>#{link_to SubscriptionMailer, send_email_path}"
   end
 
   def create_job
     HelloWorldJob.perform_later
+    redirect_to root_path
+  end
+
+  def send_email
+    SubscriptionMailer.notify.deliver_later
     redirect_to root_path
   end
 
@@ -52,8 +59,46 @@ Rails.application.configure do
     namespace
   )
 
+  default_manifest = YAML.safe_load(
+    <<~MANIFEST
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: scheduled-job-name
+        namespace: default
+      spec:
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: app-job
+              image: activejobk8s:0.1.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: RAILS_SERVE_STATIC_FILES
+                  value: "1"
+                - name: RAILS_LOG_TO_STDOUT
+                  value: "1"
+                - name: RAILS_ENV
+                  value: "development"
+              command: ["/bin/sh"]
+              args:
+                - "-ec"
+                - "bundle install && bundle exec rails active_job_k8s:run_job"
+              volumeMounts:
+              - mountPath: /usr/src/app
+                name: application-volume
+            volumes:
+            - name: application-volume
+              hostPath:
+                # directory location on host
+                path: /application
+  MANIFEST
+  )
+
   config.active_job.queue_adapter = ActiveJob::QueueAdapters::K8sAdapter.new(
-    kubeclient_context: context
+    kubeclient_context: context,
+    default_manifest: default_manifest
   )
 
 end
@@ -67,48 +112,16 @@ class HelloWorldJob < ApplicationJob
     Rails.logger.debug "Hello World"
     FileUtils.touch(Rails.root.join("tmp","#{SecureRandom.hex}.test"))
   end
-
-  def manifest
-    YAML.safe_load(
-      <<~MANIFEST
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: scheduled-job-name
-            namespace: default
-          spec:
-            template:
-              spec:
-                restartPolicy: Never
-                containers:
-                - name: app-job
-                  image: activejobk8s:0.1.0
-                  imagePullPolicy: IfNotPresent
-                  env:
-                    - name: RAILS_SERVE_STATIC_FILES
-                      value: "1"
-                    - name: RAILS_LOG_TO_STDOUT
-                      value: "1"
-                    - name: RAILS_ENV
-                      value: "development"
-                  command: ["/bin/sh"]
-                  args:
-                    - "-ec"
-                    - "bundle install && bundle exec rails active_job_k8s:run_job"
-                  volumeMounts:
-                  - mountPath: /usr/src/app
-                    name: application-volume
-                volumes:
-                - name: application-volume
-                  hostPath:
-                    # directory location on host
-                    path: /application
-
-    MANIFEST
-    )
-  end
 end
 ' > spec/dummy/app/jobs/hello_world_job.rb
+
+echo '
+class SubscriptionMailer < ApplicationMailer
+  def notify
+    mail(to: "test@domain.tld", subject: "test", body: "message")
+  end
+end
+'  > spec/dummy/app/mailers/subscription_mailer.rb
 
 echo 'FROM ruby:3.0.4-alpine3.16
 
