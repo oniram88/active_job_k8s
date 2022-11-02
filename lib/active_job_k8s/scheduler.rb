@@ -5,13 +5,18 @@ require "json"
 module ActiveJobK8s
   class Scheduler
 
+    #@return [Kubeclient::Config::Context]
     attr_reader :kubeclient_context
 
-    # @param [Hash{ kubeclient_context: [Kubeclient::Config::Context] }] opts
+    #@return [Hash]
+    attr_reader :default_manifest
+
+    # @param [Hash{ kubeclient_context: Kubeclient::Config::Context, default_manifest: Hash }] opts
     def initialize(**opts)
       raise "No KubeClientContext given" if opts[:kubeclient_context].nil?
       # or to use a specific context, by name:
       @kubeclient_context = opts[:kubeclient_context]
+      @default_manifest = opts[:default_manifest] || {}
 
     end
 
@@ -19,7 +24,8 @@ module ActiveJobK8s
 
       serialized_job = JSON.dump(job.serialize)
 
-      kube_job = Kubeclient::Resource.new(job.manifest)
+      manifest = (job.respond_to?(:manifest) and job.manifest.is_a?(Hash) and !job.manifest.empty?) ?  job.manifest : default_manifest
+      kube_job = Kubeclient::Resource.new(manifest)
 
       # kube_job.spec.suspend = false FIXME complete for delayed jobs
       kube_job.metadata.name = "#{kube_job.metadata.name}-#{job.job_id}"

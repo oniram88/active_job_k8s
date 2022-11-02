@@ -1,5 +1,9 @@
 RSpec.describe 'ActiveJobK8s::Scheduler' do
 
+  let(:default_manifest) {
+    {}
+  }
+
   let(:args) {
     {
       kubeclient_context: instance_double(
@@ -13,7 +17,8 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
         },
         api_endpoint: "https://kubernetes.default.svc",
         namespace: "my-namespace"
-      )
+      ),
+      default_manifest: default_manifest
     }
   }
 
@@ -46,6 +51,10 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
       expect(subject.kubeclient_context).to be == args[:kubeclient_context]
     end
 
+    it "manifest" do
+      expect(subject.default_manifest).to be == args[:default_manifest]
+    end
+
     it "client" do
 
       expect(subject.send(:client)).to be_an_instance_of(Kubeclient::Client).and(have_attributes(
@@ -56,7 +65,7 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
 
     describe "create job" do
 
-      let(:manifest) do
+      let(:default_manifest) do
         {
           "apiVersion" => "batch/v1",
           "kind" => "Job",
@@ -78,6 +87,9 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
             }
         }
       end
+      let(:job_manifest) do
+        nil
+      end
 
       let(:job_class) do
 
@@ -94,7 +106,7 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
 
         end
 
-        c.manifest = manifest
+        c.manifest = job_manifest
         c
       end
 
@@ -141,7 +153,7 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
       end
 
       context "with command" do
-        let(:manifest) do
+        let(:default_manifest) do
           super().tap do |m|
             m['spec']['template']['spec']['containers'][0].tap do |c|
               c['command'] = ['sleep']
@@ -161,6 +173,35 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
                       include(
                         command: ['sleep'],
                         args: ["3000"]
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+          job_class.perform_later
+        end
+      end
+
+      context "with job manifest" do
+        let(:job_manifest) do
+          default_manifest.tap do |m|
+            m['spec']['template']['spec']['containers'][0].tap do |c|
+              c['name'] = "custom-job-name"
+            end
+          end
+        end
+
+        it do
+          expect(fake_client).to receive(:create_job).with(
+            have_attributes(
+              spec: include(
+                template: include(
+                  spec: include(
+                    containers: array_including(
+                      include(
+                        name: "custom-job-name"
                       )
                     )
                   )

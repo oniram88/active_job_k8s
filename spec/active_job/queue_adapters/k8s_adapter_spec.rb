@@ -3,7 +3,8 @@ RSpec.describe 'ActiveJob::QueueAdapters::K8sAdapter' do
 
   let(:args) {
     {
-      kubeclient_context: instance_double("Kubeclient::Config::Context")
+      kubeclient_context: instance_double("Kubeclient::Config::Context"),
+      default_manifest: {}
     }
   }
 
