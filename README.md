@@ -1,4 +1,4 @@
-# ActiveJobK8s
+# ActiveJobK8s [![Gem Version](https://badge.fury.io/rb/active_job_k8s.svg)](https://badge.fury.io/rb/active_job_k8s)
 
 WIP gem to make active job work with kubernetes jobs.
 
