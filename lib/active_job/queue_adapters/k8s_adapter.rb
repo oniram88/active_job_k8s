@@ -16,11 +16,9 @@ module ActiveJob
         scheduler.create_job(job)
       end
 
-      def enqueue_at(*)
-        # :nodoc:
-        raise NotImplementedError, "It will be implemented in the future. Read the roadmap"
+      def enqueue_at(job,scheduled_at)
+        scheduler.create_job(job,scheduled_at:scheduled_at)
       end
-
 
     end
   end

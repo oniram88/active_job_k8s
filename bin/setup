@@ -20,19 +20,26 @@ echo '
 class MainController < ApplicationController
   include ActionView::Helpers::UrlHelper
 
-  def index
-    render inline: "#{link_to HelloWorldJob.name, create_job_path}<br>#{link_to SubscriptionMailer, send_email_path}"
-  end
+   def index
+     render inline: "#{link_to HelloWorldJob.name, create_job_path}<br>
+                     #{link_to HelloWorldJob.name, create_job_path(wait: 1)}<br>
+                     #{link_to SubscriptionMailer, send_email_path}"
+   end
 
-  def create_job
-    HelloWorldJob.perform_later
-    redirect_to root_path
-  end
+   def create_job
+     j = HelloWorldJob
+     if params[:wait]
+       j = j.set(wait: params[:wait].to_i.minutes)
+     end
+     j.perform_later
 
-  def send_email
-    SubscriptionMailer.notify.deliver_later
-    redirect_to root_path
-  end
+     redirect_to root_path
+   end
+
+   def send_email
+     SubscriptionMailer.notify.deliver_later
+     redirect_to root_path
+   end
 
 end
 ' > spec/dummy/app/controllers/main_controller.rb

@@ -125,8 +125,14 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
                                                      kind: "Job",
                                                      metadata: include(
                                                        name: /scheduled-job-name-.*/,
-                                                       queue_name: 'name-of-the-queue',
-                                                       namespace: "my-namespace"
+                                                       namespace: "my-namespace",
+                                                       annotations: include(
+                                                         queue_name: 'name-of-the-queue',
+                                                         job_id: anything
+                                                       ),
+                                                       labels: include(
+                                                         activeJobK8s: "delayed"
+                                                       ),
                                                      ),
                                                      spec: include(
                                                        ttlSecondsAfterFinished: 300,
@@ -150,6 +156,106 @@ RSpec.describe 'ActiveJobK8s::Scheduler' do
 
         job_class.perform_later
 
+      end
+
+      it "generate scheduled" do
+        time = Time.now + 10.minutes
+        expect(fake_client).to receive(:create_job).with(
+          an_instance_of(Kubeclient::Resource).and(have_attributes(
+                                                     kind: "Job",
+                                                     metadata: include(
+                                                       annotations: include(
+                                                         queue_name: 'name-of-the-queue',
+                                                         job_id: anything,
+                                                         scheduled_at: time.to_f.to_s
+                                                       ),
+                                                       labels: include(
+                                                         activeJobK8s: "scheduled"
+                                                       )
+                                                     ),
+                                                     spec: include(
+                                                       suspend: true
+                                                     )
+                                                   ))
+        )
+
+        job_class.set(wait_until: time).perform_later
+      end
+
+      describe "unsuspend jobs" do
+        it "get suspended jobs" do
+          expect(fake_client).to receive(:get_jobs).with(
+            namespace: "my-namespace",
+            label_selector: "activeJobK8s=scheduled",
+            field_selector: 'status.successful!=1'
+          )
+          subject.send(:suspended_jobs)
+        end
+
+        describe "unsuspend jobs" do
+
+          let(:suspended_jobs) {
+            []
+          }
+          before do
+            allow(subject).to receive(:suspended_jobs).and_return(suspended_jobs)
+          end
+
+          it "nothing" do
+            expect(fake_client).not_to receive(:patch_job)
+            subject.un_suspend_jobs
+          end
+
+          context "it's time" do
+            let(:suspended_jobs) {
+
+              example_job = Kubeclient::Resource.new(YAML.safe_load(
+                <<~MANIFEST
+                  apiVersion: batch/v1
+                  kind: Job
+                  metadata:
+                    name: scheduled-job-name
+                    namespace: default
+                  spec:
+                    suspend: true
+                    template:
+                      spec:
+                        restartPolicy: Never
+                        containers:
+                        - name: app-job
+                          image: activejobk8s:0.1.0
+              MANIFEST
+              ))
+
+              [
+                example_job.dup.tap { |j|
+                  j.metadata.annotations = { scheduled_at: (Time.now - 1.minute).to_f }
+                  j.metadata.name = "to-execute"
+                },
+                example_job.dup.tap { |j|
+                  j.metadata.name = "not-to-execute"
+                  j.metadata.annotations = { scheduled_at: (Time.now + 1.minute).to_f }
+                }
+              ]
+            }
+
+            it "apply_one" do
+              expect(fake_client).to receive(:patch_job).with(
+                "to-execute",
+                { spec: { suspend: false } },
+                'default'
+              )
+              expect(fake_client).not_to receive(:patch_job).with(
+                "not-to-execute",
+                { spec: { suspend: false } },
+                'default'
+              )
+              subject.un_suspend_jobs
+            end
+
+          end
+
+        end
       end
 
       context "with command" do

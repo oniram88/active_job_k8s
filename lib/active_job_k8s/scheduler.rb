@@ -20,17 +20,17 @@ module ActiveJobK8s
 
     end
 
-    def create_job(job)
+    def create_job(job, scheduled_at: nil)
 
       serialized_job = JSON.dump(job.serialize)
 
-      manifest = (job.respond_to?(:manifest) and job.manifest.is_a?(Hash) and !job.manifest.empty?) ?  job.manifest : default_manifest
+      manifest = (job.respond_to?(:manifest) and job.manifest.is_a?(Hash) and !job.manifest.empty?) ? job.manifest : default_manifest
       kube_job = Kubeclient::Resource.new(manifest)
 
-      # kube_job.spec.suspend = false FIXME complete for delayed jobs
       kube_job.metadata.name = "#{kube_job.metadata.name}-#{job.job_id}"
-      kube_job.metadata.job_id = job.job_id
-      kube_job.metadata.queue_name = job.queue_name
+      kube_job.metadata.annotations ||= {}
+      kube_job.metadata.annotations.job_id = job.job_id
+      kube_job.metadata.annotations.queue_name = job.queue_name
       kube_job.metadata.namespace = kube_job.metadata.namespace || kubeclient_context.namespace
       kube_job.spec.template.spec.containers.map do |container|
         container.env ||= []
@@ -46,11 +46,30 @@ module ActiveJobK8s
       end
       kube_job.spec.ttlSecondsAfterFinished = 300 #number of seconds the job will be erased
 
+      kube_job.metadata.labels ||= {}
+      if scheduled_at
+        kube_job.spec.suspend = true
+        kube_job.metadata.annotations.scheduled_at = scheduled_at.to_s
+        kube_job.metadata.labels.activeJobK8s = "scheduled" # job to be execute when time comes
+      else
+        kube_job.metadata.labels.activeJobK8s = "delayed" # job to be execute when possible
+      end
       client.create_job(kube_job)
     end
 
     def self.execute_job
       ActiveJob::Base.execute(JSON.parse(ENV['SERIALIZED_JOB']))
+    end
+
+    ##
+    # Un-suspend jobs if the scheduled at is outdated
+    def un_suspend_jobs
+      suspended_jobs.each do |sj|
+        scheduled_at = Time.at(sj.metadata.annotations.scheduled_at.to_f)
+        if Time.now > scheduled_at and sj.spec.suspend
+          client.patch_job(sj.metadata.name, { spec: { suspend: false } }, sj.metadata.namespace).inspect
+        end
+      end
     end
 
     protected
@@ -60,6 +79,16 @@ module ActiveJobK8s
                                          @kubeclient_context.api_version || 'v1',
                                          ssl_options: @kubeclient_context.ssl_options,
                                          auth_options: @kubeclient_context.auth_options)
+    end
+
+    private
+
+    ##
+    # Internal list of all suspended jobs
+    def suspended_jobs
+      client.get_jobs(namespace: kubeclient_context.namespace,
+                      label_selector: "activeJobK8s=scheduled",
+                      field_selector: 'status.successful!=1')
     end
   end
 

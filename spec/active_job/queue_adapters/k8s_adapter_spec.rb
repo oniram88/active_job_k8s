@@ -22,10 +22,10 @@ RSpec.describe 'ActiveJob::QueueAdapters::K8sAdapter' do
     subject.enqueue(job)
   end
 
-  it "enqueue_at"do
-    expect{
-      subject.enqueue_at
-    }.to raise_error(NotImplementedError)
+  it "enqueue_at" do
+    job = instance_double("ActiveJob::Base")
+    expect(subject.scheduler).to receive(:create_job).with(job, scheduled_at: 12312323.123)
+    subject.enqueue_at(job, 12312323.123)
   end
 
 end
