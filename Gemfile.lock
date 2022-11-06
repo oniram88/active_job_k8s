@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    active_job_k8s (0.1.0)
+    active_job_k8s (0.2.0)
       kubeclient (~> 4.0)
       rails (>= 6.0, < 8)
 
