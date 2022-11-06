@@ -117,9 +117,8 @@ rules:
     verbs:
       - get
       - list
-      - watch
       - create
-      - delete
+      - patch
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
