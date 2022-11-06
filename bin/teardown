@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+set -vx
+
+rm -fr spec/dummy
+kind delete cluster -n active-job-cluster
