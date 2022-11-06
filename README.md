@@ -4,7 +4,7 @@ WIP gem to make active job work with kubernetes jobs.
 
 Roadmap for V1.0:
 - [x] ActiveJob.perform_later create a Job in k8s that will execute the job
-- [ ] ActiveJob.perform_later with delay create a Job in k8s in suspended mode, 
+- [x] ActiveJob.perform_later with delay create a Job in k8s in suspended mode, 
       a task will enable it as soon as the time is reached
 - [ ] Limiting the number of concurrent jobs (if there are more jobs they will be created in suspended mode)
 
