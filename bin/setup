@@ -15,6 +15,7 @@ sed -i 's/2.7.4/>= 2.7.4/' spec/dummy/Gemfile
 sed -i '/end/i root "main#index"' spec/dummy/config/routes.rb
 sed -i '/root "main#index"/i get  "create_job", to:  "main#create_job", as: "create_job"' spec/dummy/config/routes.rb
 sed -i '/root "main#index"/i get  "send_email", to:  "main#send_email", as: "send_email"' spec/dummy/config/routes.rb
+sed -i '/root "main#index"/i   get "health", to: "main#health"' spec/dummy/config/routes.rb
 
 echo '
 class MainController < ApplicationController
@@ -34,6 +35,10 @@ class MainController < ApplicationController
      j.perform_later
 
      redirect_to root_path
+   end
+
+   def health
+     head :ok
    end
 
    def send_email
@@ -117,6 +122,7 @@ class HelloWorldJob < ApplicationJob
 
   def perform(*args)
     Rails.logger.debug "Hello World"
+    sleep (SecureRandom.random_number * 50).to_i # simulate operations
     FileUtils.touch(Rails.root.join("tmp","#{SecureRandom.hex}.test"))
   end
 end
@@ -146,7 +152,7 @@ RUN bundle install
 
 COPY . .
 
-CMD ["/bin/sh", "-ec", "bundle install && bundle exec rails s -b 0.0.0.0 -p 3000"]' > spec/dummy/Dockerfile
+CMD ["/bin/sh", "-ec", "rm -fr /usr/src/app/spec/dummy/tmp/pids/* && bundle install && bundle exec rails s -b 0.0.0.0 -p 3000"]' > spec/dummy/Dockerfile
 
 docker build -t activejobk8s:0.1.0 spec/dummy/.
 
@@ -191,6 +197,12 @@ spec:
     volumeMounts:
     - mountPath: /usr/src/app
       name: application-volume
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 120
+      periodSeconds: 3
   volumes:
   - name: application-volume
     hostPath:
