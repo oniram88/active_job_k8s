@@ -11,13 +11,14 @@ module ActiveJobK8s
     #@return [Hash]
     attr_reader :default_manifest
 
-    # @param [Hash{ kubeclient_context: Kubeclient::Config::Context, default_manifest: Hash }] opts
-    def initialize(**opts)
-      raise "No KubeClientContext given" if opts[:kubeclient_context].nil?
+    # @param [Kubeclient::Config::Context] kubeclient_context
+    # @param [Hash] default_manifest
+    # @param [Integer] max_concurrent_jobs default 5
+    def initialize(kubeclient_context:, default_manifest: {}, max_concurrent_jobs: 5)
       # or to use a specific context, by name:
-      @kubeclient_context = opts[:kubeclient_context]
-      @default_manifest = opts[:default_manifest] || {}
-
+      @kubeclient_context = kubeclient_context
+      @default_manifest = default_manifest
+      @max_concurrent_jobs = max_concurrent_jobs
     end
 
     def create_job(job, scheduled_at: nil)
