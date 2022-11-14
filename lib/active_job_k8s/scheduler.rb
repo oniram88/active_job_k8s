@@ -62,13 +62,17 @@ module ActiveJobK8s
     end
 
     ##
-    # Un-suspend jobs if the scheduled at is outdated
+    # Un-suspend jobs if the scheduled at is outdated, limited to max allowed concurrent
     def un_suspend_jobs
-      suspended_jobs.each do |sj|
+
+      to_activate_jobs = @max_concurrent_jobs - active_jobs.size #FIXME devo sottrarre il numero degli attivi attualmente
+      to_activate_jobs = 0 if to_activate_jobs < 0
+      Rails.logger.debug { "Devo abilitare: [#{to_activate_jobs}/#{active_jobs.size}]" }
+      suspended_jobs.select { |sj|
         scheduled_at = Time.at(sj.metadata.annotations.scheduled_at.to_f)
-        if Time.now > scheduled_at and sj.spec.suspend
-          client.patch_job(sj.metadata.name, { spec: { suspend: false } }, sj.metadata.namespace).inspect
-        end
+        Time.now > scheduled_at and sj.spec.suspend
+      }.take(to_activate_jobs).each do |sj|
+        client.patch_job(sj.metadata.name, { spec: { suspend: false } }, sj.metadata.namespace).inspect
       end
     end
 
@@ -89,6 +93,16 @@ module ActiveJobK8s
       client.get_jobs(namespace: kubeclient_context.namespace,
                       label_selector: "activeJobK8s=scheduled",
                       field_selector: 'status.successful!=1')
+    end
+
+    def active_jobs
+      client.get_jobs(namespace: kubeclient_context.namespace,
+                      label_selector: "activeJobK8s",
+                      field_selector: 'status.successful!=1').select do |j|
+
+        # Rails.logger.debug { [j.status.inspect , j.spec.suspend.inspect ] }
+        j.status.active.to_i == 1 and j.spec.suspend != "true"
+      end
     end
   end
 
