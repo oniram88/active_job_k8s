@@ -6,7 +6,7 @@ Roadmap for V1.0:
 - [x] ActiveJob.perform_later create a Job in k8s that will execute the job
 - [x] ActiveJob.perform_later with delay create a Job in k8s in suspended mode, 
       a task will enable it as soon as the time is reached
-- [ ] Limiting the number of concurrent jobs (if there are more jobs they will be created in suspended mode)
+- [x] Limiting the number of concurrent jobs (if there are more jobs they will be created in suspended mode)
 
 Future:
 - [ ] Metrics (because everyone like metrics)
