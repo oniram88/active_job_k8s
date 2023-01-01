@@ -23,39 +23,12 @@ module ActiveJobK8s
 
     def create_job(job, scheduled_at: nil)
 
-      serialized_job = JSON.dump(job.serialize)
-
-      manifest = (job.respond_to?(:manifest) and job.manifest.is_a?(Hash) and !job.manifest.empty?) ? job.manifest : default_manifest
-      kube_job = Kubeclient::Resource.new(manifest)
-
-      kube_job.metadata.name = "#{kube_job.metadata.name}-#{job.job_id}"
-      kube_job.metadata.annotations ||= {}
-      kube_job.metadata.annotations.job_id = job.job_id
-      kube_job.metadata.annotations.queue_name = job.queue_name
-      kube_job.metadata.namespace = kube_job.metadata.namespace || kubeclient_context.namespace
-      kube_job.spec.template.spec.containers.map do |container|
-        container.env ||= []
-        container.env.push({
-                             'name' => 'SERIALIZED_JOB',
-                             'value' => serialized_job
-                           })
-
-        if container.command.blank?
-          container.command = ["rails"]
-          container.args = ["active_job_k8s:run_job"]
-        end
+      ##
+      # Make the job scheduled_at if there are not enought slot available
+      if scheduled_at.nil? and active_jobs.length>=@max_concurrent_jobs
+        scheduled_at = Time.now
       end
-      kube_job.spec.ttlSecondsAfterFinished = 300 #number of seconds the job will be erased
-
-      kube_job.metadata.labels ||= {}
-      if scheduled_at
-        kube_job.spec.suspend = true
-        kube_job.metadata.annotations.scheduled_at = scheduled_at.to_s
-        kube_job.metadata.labels.activeJobK8s = "scheduled" # job to be execute when time comes
-      else
-        kube_job.metadata.labels.activeJobK8s = "delayed" # job to be execute when possible
-      end
-      client.create_job(kube_job)
+      _create_job(job, scheduled_at: scheduled_at)
     end
 
     def self.execute_job
@@ -63,12 +36,12 @@ module ActiveJobK8s
     end
 
     ##
-    # Un-suspend jobs if the scheduled at is outdated, limited to max allowed concurrent
+    # Un-suspend jobs if the `scheduled at` is outdated, limited to max allowed concurrent
     def un_suspend_jobs
 
-      to_activate_jobs = @max_concurrent_jobs - active_jobs.size #FIXME devo sottrarre il numero degli attivi attualmente
+      to_activate_jobs = @max_concurrent_jobs - active_jobs.size
       to_activate_jobs = 0 if to_activate_jobs < 0
-      Rails.logger.debug { "Devo abilitare: [#{to_activate_jobs}/#{active_jobs.size}]" }
+      # ::Rails.logger.debug { "Slot liberi: #{to_activate_jobs} - Job attivi: #{active_jobs.size} - Job in attesa: #{suspended_jobs.length}" }
       suspended_jobs.select { |sj|
         scheduled_at = Time.at(sj.metadata.annotations.scheduled_at.to_f)
         Time.now > scheduled_at and sj.spec.suspend
@@ -96,15 +69,52 @@ module ActiveJobK8s
                       field_selector: 'status.successful!=1')
     end
 
+    # @return [Array<Kubeclient::Resource>]
     def active_jobs
       client.get_jobs(namespace: kubeclient_context.namespace,
                       label_selector: "activeJobK8s",
                       field_selector: 'status.successful!=1').select do |j|
-
-        # Rails.logger.debug { [j.status.inspect , j.spec.suspend.inspect ] }
         j.status.active.to_i == 1 and j.spec.suspend != "true"
       end
     end
+
+    def _create_job(job, scheduled_at: nil)
+
+      serialized_job = JSON.dump(job.serialize)
+
+      manifest = (job.respond_to?(:manifest) and job.manifest.is_a?(Hash) and !job.manifest.empty?) ? job.manifest : default_manifest
+      kube_job = Kubeclient::Resource.new(manifest)
+
+      kube_job.metadata.name = "#{kube_job.metadata.name}-#{job.job_id}"
+      kube_job.metadata.annotations ||= {}
+      kube_job.metadata.annotations.job_id = job.job_id
+      kube_job.metadata.annotations.queue_name = job.queue_name
+      kube_job.metadata.namespace = kube_job.metadata.namespace || kubeclient_context.namespace
+      kube_job.spec.template.spec.containers.map do |container|
+        container.env ||= []
+        container.env.push({
+                             'name' => 'SERIALIZED_JOB',
+                             'value' => serialized_job
+                           })
+
+        if container.command.blank?
+          container.command = ["rails"]
+          container.args = ["active_job_k8s:run_job"]
+        end
+      end
+      kube_job.spec.ttlSecondsAfterFinished = 300 # number of seconds the job will be erased
+
+      kube_job.metadata.labels ||= {}
+      if scheduled_at
+        kube_job.spec.suspend = true
+        kube_job.metadata.annotations.scheduled_at = scheduled_at.to_s
+        kube_job.metadata.labels.activeJobK8s = "scheduled" # job to be execute when time comes
+      else
+        kube_job.metadata.labels.activeJobK8s = "delayed" # job to be execute when possible
+      end
+      client.create_job(kube_job)
+    end
+
   end
 
 end
