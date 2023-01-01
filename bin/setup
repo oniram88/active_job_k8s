@@ -5,7 +5,7 @@ set -vx
 
 bundle install
 
-# Prepariamo l'applicazione esempio
+# Create dummy application
 rm -fr spec/dummy
 bundle exec rails new spec/dummy --skip-git --skip-javascript --skip-hotwire --skip-jbuilder --skip-test --skip-bootsnap --force
 

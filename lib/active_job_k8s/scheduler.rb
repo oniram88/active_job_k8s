@@ -11,16 +11,74 @@ module ActiveJobK8s
     #@return [Hash]
     attr_reader :default_manifest
 
-    # @param [Hash{ kubeclient_context: Kubeclient::Config::Context, default_manifest: Hash }] opts
-    def initialize(**opts)
-      raise "No KubeClientContext given" if opts[:kubeclient_context].nil?
+    # @param [Kubeclient::Config::Context] kubeclient_context
+    # @param [Hash] default_manifest
+    # @param [Integer] max_concurrent_jobs default 5
+    def initialize(kubeclient_context:, default_manifest: {}, max_concurrent_jobs: 5)
       # or to use a specific context, by name:
-      @kubeclient_context = opts[:kubeclient_context]
-      @default_manifest = opts[:default_manifest] || {}
-
+      @kubeclient_context = kubeclient_context
+      @default_manifest = default_manifest
+      @max_concurrent_jobs = max_concurrent_jobs
     end
 
     def create_job(job, scheduled_at: nil)
+
+      ##
+      # Make the job scheduled_at if there are not enought slot available
+      if scheduled_at.nil? and active_jobs.length>=@max_concurrent_jobs
+        scheduled_at = Time.now
+      end
+      _create_job(job, scheduled_at: scheduled_at)
+    end
+
+    def self.execute_job
+      ActiveJob::Base.execute(JSON.parse(ENV['SERIALIZED_JOB']))
+    end
+
+    ##
+    # Un-suspend jobs if the `scheduled at` is outdated, limited to max allowed concurrent
+    def un_suspend_jobs
+
+      to_activate_jobs = @max_concurrent_jobs - active_jobs.size
+      to_activate_jobs = 0 if to_activate_jobs < 0
+      # ::Rails.logger.debug { "Slot liberi: #{to_activate_jobs} - Job attivi: #{active_jobs.size} - Job in attesa: #{suspended_jobs.length}" }
+      suspended_jobs.select { |sj|
+        scheduled_at = Time.at(sj.metadata.annotations.scheduled_at.to_f)
+        Time.now > scheduled_at and sj.spec.suspend
+      }.take(to_activate_jobs).each do |sj|
+        client.patch_job(sj.metadata.name, { spec: { suspend: false } }, sj.metadata.namespace).inspect
+      end
+    end
+
+    protected
+
+    def client
+      @client ||= Kubeclient::Client.new(@kubeclient_context.api_endpoint + '/apis/batch',
+                                         @kubeclient_context.api_version || 'v1',
+                                         ssl_options: @kubeclient_context.ssl_options,
+                                         auth_options: @kubeclient_context.auth_options)
+    end
+
+    private
+
+    ##
+    # Internal list of all suspended jobs
+    def suspended_jobs
+      client.get_jobs(namespace: kubeclient_context.namespace,
+                      label_selector: "activeJobK8s=scheduled",
+                      field_selector: 'status.successful!=1')
+    end
+
+    # @return [Array<Kubeclient::Resource>]
+    def active_jobs
+      client.get_jobs(namespace: kubeclient_context.namespace,
+                      label_selector: "activeJobK8s",
+                      field_selector: 'status.successful!=1').select do |j|
+        j.status.active.to_i == 1 and j.spec.suspend != "true"
+      end
+    end
+
+    def _create_job(job, scheduled_at: nil)
 
       serialized_job = JSON.dump(job.serialize)
 
@@ -44,7 +102,7 @@ module ActiveJobK8s
           container.args = ["active_job_k8s:run_job"]
         end
       end
-      kube_job.spec.ttlSecondsAfterFinished = 300 #number of seconds the job will be erased
+      kube_job.spec.ttlSecondsAfterFinished = 300 # number of seconds the job will be erased
 
       kube_job.metadata.labels ||= {}
       if scheduled_at
@@ -57,39 +115,6 @@ module ActiveJobK8s
       client.create_job(kube_job)
     end
 
-    def self.execute_job
-      ActiveJob::Base.execute(JSON.parse(ENV['SERIALIZED_JOB']))
-    end
-
-    ##
-    # Un-suspend jobs if the scheduled at is outdated
-    def un_suspend_jobs
-      suspended_jobs.each do |sj|
-        scheduled_at = Time.at(sj.metadata.annotations.scheduled_at.to_f)
-        if Time.now > scheduled_at and sj.spec.suspend
-          client.patch_job(sj.metadata.name, { spec: { suspend: false } }, sj.metadata.namespace).inspect
-        end
-      end
-    end
-
-    protected
-
-    def client
-      @client ||= Kubeclient::Client.new(@kubeclient_context.api_endpoint + '/apis/batch',
-                                         @kubeclient_context.api_version || 'v1',
-                                         ssl_options: @kubeclient_context.ssl_options,
-                                         auth_options: @kubeclient_context.auth_options)
-    end
-
-    private
-
-    ##
-    # Internal list of all suspended jobs
-    def suspended_jobs
-      client.get_jobs(namespace: kubeclient_context.namespace,
-                      label_selector: "activeJobK8s=scheduled",
-                      field_selector: 'status.successful!=1')
-    end
   end
 
 end
