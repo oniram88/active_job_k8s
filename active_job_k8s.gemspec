@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency 'kubeclient', '~> 4.0' #https://github.com/ManageIQ/kubeclient
+  spec.add_dependency 'http', '>= 5.0' # dipendenza di kubeclient, ma non si compila correttamente con versione di ruby > di 2.7
   spec.add_dependency 'rails', '>= 6.0', '<8'
 
 end

@@ -4,7 +4,7 @@ source "https://rubygems.org"
 gemspec
 
 gem "rails","~> 6.1"
-gem "rake", "~> 12.0"
+gem "rake", "~> 13.0"
 gem "rspec", "~> 3.0"
 
 gem 'simplecov', require: false
