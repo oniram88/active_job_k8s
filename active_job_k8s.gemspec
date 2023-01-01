@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.summary       = "ActiveJob adapter for kubernetes job"
   spec.homepage      = "https://github.com/oniram88/active_job_k8s"
   spec.license       = "MIT"
-  spec.required_ruby_version = Gem::Requirement.new(">= 2.6.0")
+  spec.required_ruby_version = Gem::Requirement.new(">= 2.7.0")
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
 
