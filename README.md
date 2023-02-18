@@ -161,7 +161,7 @@ The command will be inserted by the gem if not present.
       command: ["rails"]
       args: ["active_job_k8s:run_job"]
 ```
-To the name of the Job wi will append a timestamp to make it uniq
+To the name of the Job we will append a timestamp to make it uniq
 
 ## Development
 
