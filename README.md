@@ -33,7 +33,7 @@ Or install it yourself as:
 ### Adapter Configuration
 Configure the KubeClient as documented here: https://github.com/ManageIQ/kubeclient and instantiate the adapter.
 
-ES Local with default kind cluster:
+Example: Local with default kind cluster:
 ```ruby
 
   kubeclient_config = Kubeclient::Config.read(ENV['KUBECONFIG'] || File.join(Dir.home, '/.kube/config'))
@@ -43,7 +43,7 @@ ES Local with default kind cluster:
   )
 
 ```
-ES production configuration:
+Example: production configuration:
 ```ruby
 Rails.application.configure do
 
@@ -139,7 +139,7 @@ roleRef:
 
 Inside you job you should describe the initial manifest for the [KubernetesJob](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
 
-ES:
+Example:
 ```ruby
 class HelloWorldJob < ApplicationJob
   queue_as :default
