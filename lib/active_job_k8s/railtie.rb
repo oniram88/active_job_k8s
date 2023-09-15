@@ -7,14 +7,18 @@ module ActiveJobK8s
     end
 
     server do
-      puts "=> START ActiveJobK8s - ControlLoop sleep [5]"
-      Thread.new do
-        Rails.application.reloader.wrap do
-          loop do
-            Rails.application.config.active_job.queue_adapter.scheduler.un_suspend_jobs
-            sleep 5
+      if Rails.application.config.active_job.queue_adapter.is_a? ActiveJob::QueueAdapters::K8sAdapter
+        puts "=> START ActiveJobK8s - ControlLoop sleep [5]"
+        Thread.new do
+          Rails.application.reloader.wrap do
+            loop do
+              Rails.application.config.active_job.queue_adapter.scheduler.un_suspend_jobs
+              sleep 5
+            end
           end
         end
+      else
+        puts "=> Queue Adapter was not ActiveJob::QueueAdapters::K8sAdapter"
       end
     end
   end
