@@ -3,5 +3,5 @@ set -euo pipefail
 IFS=$'\n\t'
 set -vx
 
-rm -fr spec/dummy
+sudo rm -fr spec/dummy
 kind delete cluster -n active-job-cluster
